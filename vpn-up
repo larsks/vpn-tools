@@ -1,0 +1,26 @@
+#!/bin/sh
+
+name=$1
+
+# see if we can generate a password
+secret=$(jq -r ".\"$name\".secret" ~/.config/vpn-secrets)
+pin=$(jq -r ".\"$name\".pin" ~/.config/vpn-secrets)
+
+if [ "$secret" ] && [ "$pin" ]; then
+	oath=$(oathtool --totp "$secret")
+	password="${pin}${oath}"
+else
+	password=$(zenity --password --title "VPN password")
+fi
+
+if [ -z "$password" ]; then
+	echo "ERROR: no password available" >&2
+	exit 1
+fi
+
+# This will create a temporary file with mode 0600 containing the password in
+# `TMPDIR` (probably `/tmp`). The file will be removed immediately after the
+# command completes.
+nmcli c up id "$name" passwd-file /dev/stdin <<EOF
+vpn.secrets.password:$password
+EOF
